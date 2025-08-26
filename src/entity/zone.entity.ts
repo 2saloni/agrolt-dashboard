@@ -20,9 +20,6 @@ export class Zone {
     @ManyToOne(() => Topic, topic => topic.zones)
     @JoinColumn({ name: 'topicId' })
     topic!: Topic;
-    
-    @Column({ nullable: true })
-    topicId?: string;
 
     @CreateDateColumn()
     createdAt!: Date;

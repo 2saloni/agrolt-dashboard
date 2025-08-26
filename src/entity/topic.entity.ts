@@ -16,8 +16,14 @@ export class Topic {
     @OneToMany(() => Device, device => device.topic)
     devices!: Device[];
 
+    @Column({ nullable: true })
+    deviceId?: string;
+
     @OneToMany(() => Zone, zone => zone.topic)
     zones!: Zone[];
+
+    @Column({ nullable: true })
+    zoneId?: string;
 
     @CreateDateColumn()
     createdAt!: Date;

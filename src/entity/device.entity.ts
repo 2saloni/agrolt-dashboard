@@ -24,9 +24,6 @@ export class Device {
     @ManyToOne(() => Topic, topic => topic.devices)
     @JoinColumn({ name: 'topicId' })
     topic!: Topic;
-    
-    @Column({ nullable: true })
-    topicId?: string;
 
     @CreateDateColumn()
     createdAt!: Date;

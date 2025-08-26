@@ -2,6 +2,8 @@ import 'reflect-metadata';
 import express, { Application } from 'express';
 import dotenv from 'dotenv';
 import { initializeDatabase } from './config/database.config';
+// User routes removed
+import authRoutes from './route/auth.route';
 
 // Load environment variables
 dotenv.config();
@@ -33,8 +35,8 @@ class App {
   }
 
   private initializeRoutes() {
-    // Import and use route files here
-    // Example: this.app.use('/api/users', userRoutes);
+    // Register API routes
+    this.app.use('/api/auth', authRoutes);
   }
 
   public async start() {
