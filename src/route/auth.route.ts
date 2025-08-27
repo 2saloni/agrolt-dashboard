@@ -5,9 +5,9 @@ const router: Router = Router();
 const authController: AuthController = new AuthController();
 
 // Auth routes
-router.post('/register', authController.register);
-router.post('/login', authController.login);
-router.post('/logout', authController.logout)
-router.post('/refresh-token', authController.refreshToken);
+router.post('/register', (req, res) => authController.register(req, res));
+router.post('/login', (req, res) => authController.login(req, res));
+router.post('/logout', (req, res) => authController.logout(req, res));
+router.post('/refresh-token', (req, res) => authController.refreshToken(req, res));
 
 export default router;

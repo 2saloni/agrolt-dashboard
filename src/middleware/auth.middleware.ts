@@ -57,4 +57,6 @@ export class AuthMiddleware {
 }
 
 // Export a singleton instance
-// export const authMiddleware = new AuthMiddleware();
+const authMiddlewareInstance = new AuthMiddleware();
+export const authMiddleware = (req: Request, res: Response, next: NextFunction) => 
+  authMiddlewareInstance.authenticate(req, res, next);

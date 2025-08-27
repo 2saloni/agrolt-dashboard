@@ -11,7 +11,7 @@ export class Device {
     @Column({nullable: true})
     deviceNumber!: string;
 
-    @Column({ nullable: false })
+    @Column({ nullable: true })
     name!: string;
 
     @ManyToMany(() => User, user => user.devices)
@@ -22,7 +22,6 @@ export class Device {
     zones!: Zone[];
     
     @ManyToOne(() => Topic, topic => topic.devices)
-    @JoinColumn({ name: 'topicId' })
     topic!: Topic;
 
     @CreateDateColumn()
