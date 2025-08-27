@@ -6,6 +6,8 @@ import { initializeDatabase } from './config/database.config';
 import authRoutes from './route/auth.route';
 import deviceRoutes from './route/device.route';
 import zoneRoutes from './route/zone.route';
+// MQTT Service
+import { mqttService } from './service/mqtt.service';
 
 // Load environment variables
 dotenv.config();
@@ -45,8 +47,16 @@ class App {
 
   public async start() {
     await this.initializeDatabase();
+    
+    // Initialize MQTT service after database is ready
+    await mqttService.initialize();
+    
     this.app.listen(this.port, () => {
       console.log(`Server running on port ${this.port}`);
+      
+      // Log MQTT connection status
+      const mqttConnected = mqttService.isConnectedToBroker();
+      console.log(`MQTT Broker connection: ${mqttConnected ? 'Connected' : 'Disconnected'}`);
     });
   }
 }
@@ -54,3 +64,16 @@ class App {
 const PORT = parseInt(process.env.APP_PORT || '3000', 10);
 const app = new App(PORT);
 app.start().catch(err => console.error('Error starting server:', err));
+
+// Handle application shutdown
+process.on('SIGINT', () => {
+  console.log('Application shutting down...');
+  mqttService.disconnect();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('Application terminated');
+  mqttService.disconnect();
+  process.exit(0);
+});
