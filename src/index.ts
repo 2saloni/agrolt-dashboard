@@ -5,6 +5,7 @@ import { initializeDatabase } from './config/database.config';
 // Routes
 import authRoutes from './route/auth.route';
 import deviceRoutes from './route/device.route';
+import zoneRoutes from './route/zone.route';
 
 // Load environment variables
 dotenv.config();
@@ -39,6 +40,7 @@ class App {
     // Register API routes
     this.app.use('/api/auth', authRoutes);
     this.app.use('/api/devices', deviceRoutes);
+    this.app.use('/api/zones', zoneRoutes);
   }
 
   public async start() {
