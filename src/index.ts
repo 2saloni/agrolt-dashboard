@@ -1,13 +1,16 @@
 import 'reflect-metadata';
 import express, { Application } from 'express';
+import http from 'http';
 import dotenv from 'dotenv';
 import { initializeDatabase } from './config/database.config';
 // Routes
 import authRoutes from './route/auth.route';
 import deviceRoutes from './route/device.route';
 import zoneRoutes from './route/zone.route';
-// MQTT Service
+import topicRoutes from './route/topic.route';
+// Services
 import { mqttService } from './service/mqtt.service';
+import { webSocketService } from './service/websocket.service';
 
 // Load environment variables
 dotenv.config();
@@ -15,9 +18,11 @@ dotenv.config();
 class App {
   public app: Application;
   public port: number;
+  public server: http.Server;
 
   constructor(port: number) {
     this.app = express();
+    this.server = http.createServer(this.app);
     this.port = port;
 
     this.initializeMiddlewares();
@@ -43,6 +48,7 @@ class App {
     this.app.use('/api/auth', authRoutes);
     this.app.use('/api/devices', deviceRoutes);
     this.app.use('/api/zones', zoneRoutes);
+    this.app.use('/api/topics', topicRoutes);
   }
 
   public async start() {
@@ -51,8 +57,13 @@ class App {
     // Initialize MQTT service after database is ready
     await mqttService.initialize();
     
-    this.app.listen(this.port, () => {
+    // Start the HTTP server
+    this.server.listen(this.port, () => {
       console.log(`Server running on port ${this.port}`);
+      
+      // Initialize WebSocket service after HTTP server is running
+      webSocketService.initialize(this.server);
+      console.log('WebSocket server initialized');
       
       // Log MQTT connection status
       const mqttConnected = mqttService.isConnectedToBroker();

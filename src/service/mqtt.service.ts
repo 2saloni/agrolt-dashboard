@@ -4,6 +4,7 @@ import { Device } from '../entity/device.entity';
 import { Topic } from '../entity/topic.entity';
 import { Zone } from '../entity/zone.entity';
 import { AppDataSource } from '../config/database.config';
+import { webSocketService } from './websocket.service';
 
 @Singleton
 export class MqttService {
@@ -28,9 +29,6 @@ export class MqttService {
         return;
       }
 
-      // Create topics for all existing devices and zones before connecting
-      await this.createTopicsForExistingDevicesAndZones();
-
       this.client = mqtt.connect(this.brokerUrl, {
         clientId: `mqtt_data_service_${Math.random().toString(16).slice(2, 8)}`,
         username: process.env.MQTT_USERNAME!,
@@ -45,45 +43,6 @@ export class MqttService {
       console.error('Failed to initialize MQTT client:', error);
     }
   }
-  
-  /**
-   * Creates topics for all existing devices and zones in the database
-   */
-  private async createTopicsForExistingDevicesAndZones(): Promise<void> {
-    try {
-      console.log('Creating topics for all existing devices and zones...');
-      
-      // Get the device repository
-      const deviceRepository = AppDataSource.getRepository(Device);
-      
-      // Get all devices with their zones
-      const devices = await deviceRepository.find({ 
-        relations: ['zones'] 
-      });
-      
-      console.log(`Found ${devices.length} devices in database`);
-      
-      // For each device-zone pair, create a topic
-      let topicsCreated = 0;
-      
-      for (const device of devices) {
-        if (device.zones && device.zones.length > 0) {
-          for (const zone of device.zones) {
-            // Build the topic name
-            const topicName = this.buildTopic(device.deviceNumber, zone.name);
-            
-            // Store the topic in the database and get the topic name
-            await this.storeTopicSubscription(topicName, device.id, zone.id);
-            topicsCreated++;
-          }
-        }
-      }
-      
-      console.log(`Created ${topicsCreated} topics for existing devices and zones`);
-    } catch (error) {
-      console.error('Failed to create topics for existing devices and zones:', error);
-    }
-  }
 
   private setupEventHandlers(): void {
     if (!this.client) return;
@@ -91,7 +50,7 @@ export class MqttService {
     this.client.on('connect', () => {
       console.log('Connected to MQTT broker');
       this.isConnected = true;
-      this.subscribeToStoredTopics();
+      this.initializeSubscriptions();
     });
 
     this.client.on('reconnect', () => {
@@ -115,7 +74,8 @@ export class MqttService {
   }
 
   /**
-   * Handles message received on a subscribed topic
+   * Processes and stores messages received on subscribed topics
+   * Creates topic entries in the database if they don't exist
    */
   private async handleMessage(topic: string, message: Buffer): Promise<void> {
     try {
@@ -126,6 +86,7 @@ export class MqttService {
       }
 
       const data = this.parseMessage(message);
+      // We'll store both topic and data in storeTopicData now
       await this.storeTopicData(topic, data, topicInfo.deviceId, topicInfo.zoneId);
     } catch (error) {
       console.error(`Failed to handle message on topic ${topic}:`, error);
@@ -133,7 +94,8 @@ export class MqttService {
   }
 
   /**
-   * Parses the message from buffer to object
+   * Converts buffer message to JSON object
+   * Falls back to raw string if JSON parsing fails
    */
   private parseMessage(message: Buffer): object {
     try {
@@ -146,7 +108,8 @@ export class MqttService {
   }
 
   /**
-   * Stores the received topic data in the database
+   * Stores the received topic data in the database and broadcasts via WebSocket
+   * Now it also creates the topic entry if it doesn't exist yet
    */
   private async storeTopicData(
     topicName: string, 
@@ -157,29 +120,39 @@ export class MqttService {
     try {
       const topicRepository = AppDataSource.getRepository(Topic);
       
-      // Find existing topic or create new
-      let topic = await topicRepository.findOne({ where: { name: topicName } });
+      // First, mark all previous entries for this topic as not latest
+      await topicRepository
+        .createQueryBuilder()
+        .update(Topic)
+        .set({ isLatest: false })
+        .where("name = :name AND isLatest = :isLatest", { name: topicName, isLatest: true })
+        .execute();
       
-      if (!topic) {
-        topic = new Topic();
-        topic.name = topicName;
-        topic.deviceId = deviceId;
-        topic.zoneId = zoneId;
+      // Create new topic entry
+      const newTopic = new Topic();
+      newTopic.name = topicName;
+      newTopic.deviceId = deviceId;
+      newTopic.zoneId = zoneId;
+      newTopic.data = data;
+      newTopic.isLatest = true;
+      
+      // Save to database - this handles both creating the first entry and adding new data entries
+      const savedTopic = await topicRepository.save(newTopic);
+      console.log(`Added new data entry for topic ${topicName}`);
+      
+      // Broadcast the update via WebSocket
+      if (webSocketService.isInitialized()) {
+        webSocketService.broadcastTopicUpdate(savedTopic, data);
       }
-      
-      // Update the data field with the new message
-      topic.data = data;
-      
-      await topicRepository.save(topic);
-      console.log(`Updated topic ${topicName} with new data`);
     } catch (error) {
       console.error(`Failed to store topic data for ${topicName}:`, error);
     }
   }
 
   /**
-   * Builds a topic string using device and zone information
+   * Creates MQTT topic string from device number and zone name
    * Format: deviceNumberzoneName (e.g., 00009zone1)
+   * Sanitizes inputs to ensure valid MQTT topic format
    */
   public buildTopic(deviceNumber: string, zoneName: string): string {
     // Sanitize inputs to ensure valid MQTT topic
@@ -191,162 +164,77 @@ export class MqttService {
   }
 
   /**
-   * Subscribes to a topic and stores the subscription
-   * Flow: First store to DB, then subscribe, then handle incoming data
+   * Initializes all MQTT subscriptions when client connects
+   * Finds all device-zone pairs and subscribes to their topics
    */
-  public async subscribeTopic(
-    deviceId?: string, 
-    zoneId?: string
-  ): Promise<string | null> {
-    if (!AppDataSource.isInitialized) {
-      console.error('Database not initialized, cannot store topic');
-      return null;
-    }
-
-    try {
-      // Get device and zone information to build topic
-      let deviceNumber: string = '';
-      let zoneName: string = '';
-      
-      if (deviceId) {
-        const deviceRepository = AppDataSource.getRepository(Device);
-        const device = await deviceRepository.findOne({ where: { id: deviceId } });
-        if (device) {
-          deviceNumber = device.deviceNumber;
-        }
-      }
-      
-      if (zoneId) {
-        const zoneRepository = AppDataSource.getRepository(Zone);
-        const zone = await zoneRepository.findOne({ where: { id: zoneId } });
-        if (zone) {
-          zoneName = zone.name;
-        }
-      }
-      
-      if (!deviceNumber || !zoneName) {
-        console.warn('Missing device number or zone name, cannot build topic');
-        return null;
-      }
-      
-      // Build topic name
-      const topicName = this.buildTopic(deviceNumber, zoneName);
-      
-      // STEP 1: First store the topic in the database
-      const storedTopic = await this.storeTopicSubscription(topicName, deviceId, zoneId);
-      if (!storedTopic) {
-        console.error('Failed to store topic in database');
-        return null;
-      }
-      
-      // STEP 2: Then subscribe to the topic
-      if (!this.isConnected || !this.client) {
-        console.warn('MQTT client not connected, topic saved but cannot subscribe');
-        return topicName; // Return name since we stored it successfully
-      }
-      
-      return new Promise<string | null>((resolve) => {
-        this.client!.subscribe(topicName, (err) => {
-          if (err) {
-            console.error(`Failed to subscribe to topic ${topicName}:`, err);
-            resolve(null);
-          } else {
-            console.log(`Successfully subscribed to topic: ${topicName}`);
-            this.topicSubscriptions.set(topicName, { deviceId, zoneId });
-            resolve(topicName);
-          }
-        });
-      });
-      
-    } catch (error) {
-      console.error('Failed to subscribe to topic:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Store topic subscription in the database
-   * @returns The stored Topic entity or null if failed
-   */
-  private async storeTopicSubscription(
-    topicName: string, 
-    deviceId?: string, 
-    zoneId?: string
-  ): Promise<Topic | null> {
-    try {
-      const topicRepository = AppDataSource.getRepository(Topic);
-      
-      // Check if topic already exists
-      let topic = await topicRepository.findOne({ where: { name: topicName } });
-      
-      if (!topic) {
-        // Create new topic
-        topic = new Topic();
-        topic.name = topicName;
-        topic.deviceId = deviceId;
-        topic.zoneId = zoneId;
-        topic.data = {}; // Initialize with empty object
-        
-        const savedTopic = await topicRepository.save(topic);
-        console.log(`Created new topic in database: ${topicName}`);
-        return savedTopic;
-      } else {
-        console.log(`Topic ${topicName} already exists in database`);
-        return topic;
-      }
-    } catch (error) {
-      console.error(`Failed to store topic subscription for ${topicName}:`, error);
-      return null;
-    }
-  }
-
-  /**
-   * Load and subscribe to all existing topics from database
-   */
-  private async subscribeToStoredTopics(): Promise<void> {
+  private async initializeSubscriptions(): Promise<void> {
     if (!this.isConnected || !this.client) {
-      console.warn('MQTT client not connected, cannot subscribe to stored topics');
+      console.warn('MQTT client not connected, cannot subscribe to topics');
       return;
     }
     
-    if (!AppDataSource.isInitialized) {
-      console.warn('Database not initialized, cannot load stored topics');
+    console.log('MQTT client connected, setting up subscriptions');
+    
+    // Find all device-zone pairs and subscribe to them
+    await this.subscribeToAllDeviceZonePairs();
+  }
+  
+  /**
+   * Finds all device-zone pairs in the database and subscribes to their topics
+   */
+  private async subscribeToAllDeviceZonePairs(): Promise<void> {
+    if (!AppDataSource.isInitialized || !this.client) {
+      console.error('Database not initialized or client not connected, cannot subscribe to topics');
       return;
     }
     
     try {
-      const topicRepository = AppDataSource.getRepository(Topic);
-      const topics = await topicRepository.find();
+      console.log('Finding device-zone pairs to subscribe...');
       
-      console.log(`Found ${topics.length} topics in database, subscribing...`);
-      
-      // Subscribe to each topic from the database
-      const subscriptionPromises = topics.map(topic => {
-        return new Promise<void>((resolve) => {
-          if (!this.client) {
-            resolve();
-            return;
-          }
-          
-          this.client.subscribe(topic.name, (err) => {
-            if (err) {
-              console.error(`Failed to subscribe to stored topic ${topic.name}:`, err);
-            } else {
-              console.log(`Successfully subscribed to stored topic: ${topic.name}`);
-              this.topicSubscriptions.set(topic.name, { 
-                deviceId: topic.deviceId, 
-                zoneId: topic.zoneId 
-              });
-            }
-            resolve();
-          });
-        });
+      // Get all devices with their zones
+      const devices = await AppDataSource.getRepository(Device).find({ 
+        relations: ['zones'] 
       });
       
+      console.log(`Found ${devices.length} devices in database`);
+      
+      // Track subscription stats
+      let subscriptionCount = 0;
+      const subscriptionPromises: Promise<void>[] = [];
+      
+      // Process all device-zone pairs
+      for (const device of devices) {
+        if (!device.zones?.length) continue;
+        
+        for (const zone of device.zones) {
+          const topicName = this.buildTopic(device.deviceNumber, zone.name);
+          subscriptionCount++;
+          
+          // Create a promise for each subscription
+          const subscriptionPromise = new Promise<void>((resolve) => {
+            this.client!.subscribe(topicName, (err) => {
+              if (err) {
+                console.error(`Failed to subscribe to topic ${topicName}:`, err);
+              } else {
+                console.log(`Subscribed to topic: ${topicName}`);
+                this.topicSubscriptions.set(topicName, { 
+                  deviceId: device.id, 
+                  zoneId: zone.id 
+                });
+              }
+              resolve();
+            });
+          });
+          
+          subscriptionPromises.push(subscriptionPromise);
+        }
+      }
+      
+      // Wait for all subscriptions to complete
       await Promise.all(subscriptionPromises);
-      console.log(`Subscribed to ${topics.length} stored topics`);
+      console.log(`Subscribed to ${subscriptionCount} topics from device-zone pairs`);
     } catch (error) {
-      console.error('Failed to subscribe to stored topics:', error);
+      console.error('Failed to subscribe to device-zone pairs:', error);
     }
   }
   

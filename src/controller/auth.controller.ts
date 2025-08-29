@@ -52,7 +52,8 @@ export class AuthController {
       
       res.status(200).json(ApiResponse.success({
         user: authResponse.user,
-        accessToken: authResponse.tokens.accessToken
+        accessToken: authResponse.tokens.accessToken,
+        refreshToken: authResponse.tokens.refreshToken
       }, "Login successful"));
     } catch (error) {
       console.error("Login error:", error);
