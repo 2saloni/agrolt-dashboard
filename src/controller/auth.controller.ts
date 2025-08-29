@@ -8,7 +8,14 @@ export class AuthController {
   private readonly authService: AuthService;
 
   constructor() {
-    this.authService = new AuthService();
+    try {
+      console.log("Initializing AuthController...");
+      this.authService = new AuthService();
+      console.log("AuthService initialized successfully:", !!this.authService);
+    } catch (error) {
+      console.error("Error initializing AuthService:", error);
+      throw error;
+    }
   }
 
   /**
@@ -18,6 +25,11 @@ export class AuthController {
    */
   public async register(req: Request, res: Response): Promise<void> {
     try {
+      if (!this.authService) {
+        console.error("authService is undefined in register method");
+        throw new Error("Service not initialized");
+      }
+
       const registerRequest: RegisterRequest = req.body;
       const authResponse: AuthResponse = await this.authService.register(registerRequest);
       
@@ -44,6 +56,11 @@ export class AuthController {
    */
   public async login(req: Request, res: Response): Promise<void> {
     try {
+      if (!this.authService) {
+        console.error("authService is undefined in login method");
+        throw new Error("Service not initialized");
+      }
+
       const loginRequest: LoginRequest = req.body;
       const authResponse: AuthResponse = await this.authService.login(loginRequest);
       
@@ -101,7 +118,7 @@ export class AuthController {
    */
   public async refreshToken(req: Request, res: Response): Promise<void> {
     try {
-      const refreshToken: string = req.cookies.refreshToken || "";
+      const refreshToken: string = req.body.refreshToken || "";
       
       if (!refreshToken) {
         res.status(401).json(ApiResponse.error("Refresh token required"));

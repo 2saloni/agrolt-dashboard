@@ -2,6 +2,8 @@ import 'reflect-metadata';
 import express, { Application } from 'express';
 import http from 'http';
 import dotenv from 'dotenv';
+import cors from 'cors';
+import { getCorsOptions } from './config/cors.config';
 import { initializeDatabase } from './config/database.config';
 // Routes
 import authRoutes from './route/auth.route';
@@ -39,6 +41,9 @@ class App {
   }
 
   private initializeMiddlewares() {
+    // CORS configuration
+    this.app.use(cors(getCorsOptions()));
+    
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
   }
