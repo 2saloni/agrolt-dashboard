@@ -1,4 +1,5 @@
 import * as mqtt from 'mqtt';
+import { Repository } from 'typeorm';
 import { Singleton } from '../decorator/singleton.decorator';
 import { Device } from '../entity/device.entity';
 import { Topic } from '../entity/topic.entity';
@@ -79,13 +80,13 @@ export class MqttService {
    */
   private async handleMessage(topic: string, message: Buffer): Promise<void> {
     try {
-      const topicInfo = this.topicSubscriptions.get(topic);
+      const topicInfo: { deviceId?: string, zoneId?: string } | undefined = this.topicSubscriptions.get(topic);
       if (!topicInfo) {
         console.warn(`Received message on topic ${topic}, but no subscription info found`);
         return;
       }
 
-      const data = this.parseMessage(message);
+      const data: object = this.parseMessage(message);
       // We'll store both topic and data in storeTopicData now
       await this.storeTopicData(topic, data, topicInfo.deviceId, topicInfo.zoneId);
     } catch (error) {
@@ -118,7 +119,7 @@ export class MqttService {
     zoneId?: string
   ): Promise<void> {
     try {
-      const topicRepository = AppDataSource.getRepository(Topic);
+      const topicRepository: Repository<Topic> = AppDataSource.getRepository(Topic);
       
       // First, mark all previous entries for this topic as not latest
       await topicRepository
@@ -129,7 +130,7 @@ export class MqttService {
         .execute();
       
       // Create new topic entry
-      const newTopic = new Topic();
+      const newTopic: Topic = new Topic();
       newTopic.name = topicName;
       newTopic.deviceId = deviceId;
       newTopic.zoneId = zoneId;
@@ -137,7 +138,7 @@ export class MqttService {
       newTopic.isLatest = true;
       
       // Save to database - this handles both creating the first entry and adding new data entries
-      const savedTopic = await topicRepository.save(newTopic);
+      const savedTopic: Topic = await topicRepository.save(newTopic);
       console.log(`Added new data entry for topic ${topicName}`);
       
       // Broadcast the update via WebSocket
@@ -156,8 +157,8 @@ export class MqttService {
    */
   public buildTopic(deviceNumber: string, zoneName: string): string {
     // Sanitize inputs to ensure valid MQTT topic
-    const sanitizedDeviceNumber = deviceNumber.replace(/[#+]/g, '_');
-    const sanitizedZoneName = zoneName.replace(/[#+]/g, '_');
+    const sanitizedDeviceNumber: string = deviceNumber.replace(/[#+]/g, '_');
+    const sanitizedZoneName: string = zoneName.replace(/[#+]/g, '_');
     
     // Directly concatenate device number and zone name as per example: 00009zone1
     return `${sanitizedDeviceNumber}${sanitizedZoneName}`;
@@ -192,14 +193,14 @@ export class MqttService {
       console.log('Finding device-zone pairs to subscribe...');
       
       // Get all devices with their zones
-      const devices = await AppDataSource.getRepository(Device).find({ 
+      const devices: Device[] = await AppDataSource.getRepository(Device).find({ 
         relations: ['zones'] 
       });
       
       console.log(`Found ${devices.length} devices in database`);
       
       // Track subscription stats
-      let subscriptionCount = 0;
+      let subscriptionCount: number = 0;
       const subscriptionPromises: Promise<void>[] = [];
       
       // Process all device-zone pairs
@@ -207,11 +208,11 @@ export class MqttService {
         if (!device.zones?.length) continue;
         
         for (const zone of device.zones) {
-          const topicName = this.buildTopic(device.deviceNumber, zone.name);
+          const topicName: string = this.buildTopic(device.deviceNumber, zone.name);
           subscriptionCount++;
           
           // Create a promise for each subscription
-          const subscriptionPromise = new Promise<void>((resolve) => {
+          const subscriptionPromise: Promise<void> = new Promise<void>((resolve) => {
             this.client!.subscribe(topicName, (err) => {
               if (err) {
                 console.error(`Failed to subscribe to topic ${topicName}:`, err);

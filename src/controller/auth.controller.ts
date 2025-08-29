@@ -132,7 +132,8 @@ export class AuthController {
       this.setRefreshTokenCookie(res, tokens.refreshToken);
       
       res.status(200).json(ApiResponse.success({
-        accessToken: tokens.accessToken
+        accessToken: tokens.accessToken, 
+        refreshToken: tokens.refreshToken
       }, "Token refreshed"));
     } catch (error) {
       console.error("Token refresh error:", error);

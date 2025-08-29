@@ -36,25 +36,20 @@ export class WebSocketService {
     if (!this.io) return;
     
     this.io.on('connection', (socket) => {
-      // console.log(`🔌 [CONNECTION] New client connected: ${socket.id}`);
-      // console.log(`👥 [SERVER INFO] Total connected clients: ${this.io?.engine.clientsCount || 0}`);
       
       // Subscribe to specific topics
       socket.on('subscribe', (topicName: string) => {
-        // console.log(`Client ${socket.id} subscribed to topic: ${topicName}`);
         socket.join(`topic:${topicName}`);
       });
       
       // Unsubscribe from specific topics
       socket.on('unsubscribe', (topicName: string) => {
-        // console.log(`Client ${socket.id} unsubscribed from topic: ${topicName}`);
         socket.leave(`topic:${topicName}`);
       });
 
       // Handle zone room joining (for multiple users in same zone)
       socket.on('join-room', (data: { roomName: string, deviceName: string }) => {
         const { roomName, deviceName } = data;
-        // console.log(`🚪 [JOIN ROOM] Client ${socket.id} attempting to join zone room: ${roomName}`);
         
         // Join the zone room (like 00009zone1)
         socket.join(roomName);
@@ -65,8 +60,6 @@ export class WebSocketService {
         // Get current room member count
         const roomSize = this.io?.sockets.adapter.rooms.get(roomName)?.size || 0;
         
-        // console.log(`👥 [ROOM INFO] Zone room ${roomName} now has ${roomSize} connected clients`);
-        
         // Emit confirmation back to client
         socket.emit('room-joined', { 
           roomName, 
@@ -76,14 +69,11 @@ export class WebSocketService {
           clientCount: roomSize,
           timestamp: new Date().toISOString()
         });
-        
-        // console.log(`✅ [JOIN SUCCESS] Client ${socket.id} successfully joined zone room: ${roomName} (${roomSize} total clients)`);
       });
 
       // Handle zone room leaving
       socket.on('leave-room', (data: { roomName: string, deviceName: string }) => {
         const { roomName, deviceName } = data;
-        // console.log(`🚪 [LEAVE ROOM] Client ${socket.id} attempting to leave zone room: ${roomName}`);
         
         // Leave the zone room
         socket.leave(roomName);
@@ -93,8 +83,6 @@ export class WebSocketService {
         
         // Get remaining room member count
         const roomSize = this.io?.sockets.adapter.rooms.get(roomName)?.size || 0;
-        
-        // console.log(`👥 [ROOM INFO] Zone room ${roomName} now has ${roomSize} connected clients`);
         
         // Emit confirmation back to client
         socket.emit('room-left', { 
@@ -106,21 +94,16 @@ export class WebSocketService {
           timestamp: new Date().toISOString()
         });
         
-        // console.log(`✅ [LEAVE SUCCESS] Client ${socket.id} successfully left zone room: ${roomName} (${roomSize} remaining clients)`);
       });
 
       // Handle custom events from frontend
       socket.onAny((eventName: string, data: any) => {
         // Check if it's a custom zone event (format: {deviceName}{zoneName}-{eventType})
         if (eventName.includes('-') && !['subscribe', 'unsubscribe', 'join-room', 'leave-room'].includes(eventName)) {
-          // console.log(`🎯 [CUSTOM EVENT] Received custom event: ${eventName} from client ${socket.id}`);
-          // console.log(`📋 [EVENT DATA]`, data);
           
           // Extract room name from event (everything before the first dash)
           const roomName = eventName.split('-')[0];
           const eventType = eventName.split('-').slice(1).join('-');
-          
-          // console.log(`🎯 [EVENT INFO] Zone: ${roomName}, Event Type: ${eventType}`);
           
           // Get room size for logging
           const roomSize = this.io?.sockets.adapter.rooms.get(roomName)?.size || 0;
@@ -134,14 +117,10 @@ export class WebSocketService {
             roomName,
             eventType
           });
-          
-          // console.log(`✅ [CUSTOM EVENT BROADCAST] Broadcasted "${eventName}" to ${roomSize} clients in zone room: ${roomName}`);
         }
       });
       
       socket.on('disconnect', () => {
-        // console.log(`🔌 [DISCONNECT] Client disconnected: ${socket.id}`);
-        // console.log(`👥 [SERVER INFO] Remaining connected clients: ${(this.io?.engine.clientsCount || 1) - 1}`);
       });
     });
   }
@@ -173,20 +152,8 @@ export class WebSocketService {
     // This allows multiple users to receive data for zone room like "00009zone1"
     this.io.to(topic.name).emit('zoneData', topicData);
     
-    // Also broadcast to the "all-topics" room for clients listening to all updates
+        // Also broadcast to the "all-topics" room for clients listening to all updates
     this.io.to('all-topics').emit('topicUpdate', topicData);
-    
-    // Enhanced logging for zone data broadcasting
-    const zoneRoomSize = this.io.sockets.adapter.rooms.get(topic.name)?.size || 0;
-    const topicRoomSize = this.io.sockets.adapter.rooms.get(`topic:${topic.name}`)?.size || 0;
-    const allTopicsRoomSize = this.io.sockets.adapter.rooms.get('all-topics')?.size || 0;
-    
-    // console.log(`🔥 [ZONE DATA BROADCAST] Broadcasting data for zone: ${topic.name}`);
-    // console.log(`📊 [MQTT DATA] Payload:`, topic.data);
-    // console.log(`👥 [BROADCAST INFO] Zone room "${topic.name}": ${zoneRoomSize} clients`);
-    // console.log(`👥 [BROADCAST INFO] Topic room "topic:${topic.name}": ${topicRoomSize} clients`);
-    // console.log(`👥 [BROADCAST INFO] All-topics room: ${allTopicsRoomSize} clients`);
-    // console.log(`✅ [BROADCAST SUCCESS] Data broadcasted to ${zoneRoomSize + topicRoomSize + allTopicsRoomSize} total clients`);
   }
 
   /**
@@ -210,10 +177,7 @@ export class WebSocketService {
         timestamp: new Date(),
         clientCount
       });
-      
-      // console.log(`Broadcasted ${eventName} to zone room ${zoneName} with ${clientCount} connected clients`);
-    } else {
-      // console.log(`No clients connected to zone room: ${zoneName}`);
+
     }
   }
 
