@@ -7,11 +7,10 @@ export class Topic {
     @PrimaryGeneratedColumn('uuid')
     id!: string;
 
-    @Column({ nullable: false, unique: true })
+    @Column({ nullable: false })
     name!: string;
 
-    @Column({ type: 'json', nullable: true })
-    data?: object;
+
 
     @OneToMany(() => Device, device => device.topic)
     devices!: Device[];
@@ -24,6 +23,12 @@ export class Topic {
 
     @Column({ nullable: true })
     zoneId?: string;
+    
+    @Column({ type: 'json', nullable: true })
+    data?: object;
+    
+    @Column({ default: false })
+    isLatest!: boolean;
 
     @CreateDateColumn()
     createdAt!: Date;
