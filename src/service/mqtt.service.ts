@@ -6,6 +6,7 @@ import { Topic } from '../entity/topic.entity';
 import { Zone } from '../entity/zone.entity';
 import { AppDataSource } from '../config/database.config';
 import { webSocketService } from './websocket.service';
+import { processDataForWebsocket } from '../utils/data-convert.util';
 
 @Singleton
 export class MqttService {
@@ -141,9 +142,12 @@ export class MqttService {
       const savedTopic: Topic = await topicRepository.save(newTopic);
       console.log(`Added new data entry for topic ${topicName}`);
       
-      // Broadcast the update via WebSocket
+      // Process data for websocket using conversion utility
+      const processedData = processDataForWebsocket(topicName, data);
+      
+      // Broadcast the processed update via WebSocket
       if (webSocketService.isInitialized()) {
-        webSocketService.broadcastTopicUpdate(savedTopic, data);
+        webSocketService.broadcastTopicUpdate(savedTopic, processedData);
       }
     } catch (error) {
       console.error(`Failed to store topic data for ${topicName}:`, error);
