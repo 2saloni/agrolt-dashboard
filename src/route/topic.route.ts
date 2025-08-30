@@ -14,10 +14,4 @@ router.get('/fetch-topics', topicController.getAllTopics);
 // Get specific topic by ID
 router.get('/fetch-topic/:id', topicController.getTopicById);
 
-// Get latest data for a specific topic
-router.get('/:id/data', topicController.getTopicLatestData);
-
-// Get historical data for a specific topic by name
-router.get('/name/:name/history', topicController.getTopicHistoricalData);
-
 export default router;
