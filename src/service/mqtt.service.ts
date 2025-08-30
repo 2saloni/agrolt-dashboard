@@ -7,6 +7,7 @@ import { Zone } from '../entity/zone.entity';
 import { AppDataSource } from '../config/database.config';
 import { webSocketService } from './websocket.service';
 import { processDataForWebsocket } from '../utils/data-convert.util';
+import { ZoneData, ProcessedZoneData } from '../interface/zone-data.interface';
 
 @Singleton
 export class MqttService {
@@ -99,7 +100,7 @@ export class MqttService {
    * Converts buffer message to JSON object
    * Falls back to raw string if JSON parsing fails
    */
-  private parseMessage(message: Buffer): object {
+  private parseMessage(message: Buffer): ZoneData | Record<string, any> {
     try {
       const messageStr: string = message.toString();
       return JSON.parse(messageStr);
@@ -115,7 +116,7 @@ export class MqttService {
    */
   private async storeTopicData(
     topicName: string, 
-    data: object, 
+    data: ZoneData | Record<string, any>, 
     deviceId?: string, 
     zoneId?: string
   ): Promise<void> {
@@ -143,7 +144,9 @@ export class MqttService {
       console.log(`Added new data entry for topic ${topicName}`);
       
       // Process data for websocket using conversion utility
-      const processedData = processDataForWebsocket(topicName, data);
+      const processedData: ProcessedZoneData | Record<string, any> = processDataForWebsocket(topicName, data);
+      console.log("processedData:", processedData);
+      
       
       // Broadcast the processed update via WebSocket
       if (webSocketService.isInitialized()) {
