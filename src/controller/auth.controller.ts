@@ -9,9 +9,7 @@ export class AuthController {
 
   constructor() {
     try {
-      console.log("Initializing AuthController...");
       this.authService = new AuthService();
-      console.log("AuthService initialized successfully:", !!this.authService);
     } catch (error) {
       console.error("Error initializing AuthService:", error);
       throw error;
@@ -26,7 +24,6 @@ export class AuthController {
   public async register(req: Request, res: Response): Promise<void> {
     try {
       if (!this.authService) {
-        console.error("authService is undefined in register method");
         throw new Error("Service not initialized");
       }
 
@@ -57,7 +54,6 @@ export class AuthController {
   public async login(req: Request, res: Response): Promise<void> {
     try {
       if (!this.authService) {
-        console.error("authService is undefined in login method");
         throw new Error("Service not initialized");
       }
 

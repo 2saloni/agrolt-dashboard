@@ -7,10 +7,6 @@ import { Topic } from '../entity/topic.entity';
 
 // Load environment variables
 dotenv.config();
-console.log('db-host', process.env.DB_HOST);
-console.log('db-user', process.env.DB_USER);
-console.log('db-pass', process.env.DB_PASS);
-console.log('db-name', process.env.DB_NAME);
 
 export const AppDataSource = new DataSource({
     type: 'postgres',
