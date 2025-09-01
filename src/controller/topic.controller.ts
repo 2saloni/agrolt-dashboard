@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { AppDataSource } from '../config/database.config';
 import { Topic } from '../entity/topic.entity';
 import { ApiResponse } from '../dto/response/api.response';
+import { Repository } from 'typeorm';
 
 export class TopicController {
   /**
@@ -11,8 +12,8 @@ export class TopicController {
    */
   async getAllTopics(req: Request, res: Response): Promise<void> {
     try {
-      const topicRepository = AppDataSource.getRepository(Topic);
-      const topics = await topicRepository.find({
+      const topicRepository: Repository<Topic> = AppDataSource.getRepository(Topic);
+      const topics: Topic[] = await topicRepository.find({
         where: { isLatest: true }
       });
       
@@ -31,9 +32,9 @@ export class TopicController {
   async getTopicById(req: Request, res: Response): Promise<void> {
     try {
       const topicId: string = req.params.id;
-      const topicRepository = AppDataSource.getRepository(Topic);
+      const topicRepository: Repository<Topic> = AppDataSource.getRepository(Topic);
       
-      const topic = await topicRepository.findOne({
+      const topic: Topic | null = await topicRepository.findOne({
         where: { id: topicId }
       });
       

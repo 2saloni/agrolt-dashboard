@@ -35,7 +35,7 @@ export class WebSocketService {
   private setupEventHandlers(): void {
     if (!this.io) return;
     
-    this.io.on('connection', (socket) => {
+    this.io.on('connection', (socket: any) => {
       
       // Subscribe to specific topics
       socket.on('subscribe', (topicName: string) => {
@@ -49,7 +49,7 @@ export class WebSocketService {
 
       // Handle zone room joining (for multiple users in same zone)
       socket.on('join-room', (data: { roomName: string, deviceName: string }) => {
-        const { roomName, deviceName } = data;
+        const { roomName, deviceName }: { roomName: string, deviceName: string } = data;
         
         // Join the zone room (like 00009zone1)
         socket.join(roomName);
@@ -58,7 +58,7 @@ export class WebSocketService {
         socket.join(`topic:${roomName}`);
         
         // Get current room member count
-        const roomSize = this.io?.sockets.adapter.rooms.get(roomName)?.size || 0;
+        const roomSize: number = this.io?.sockets.adapter.rooms.get(roomName)?.size || 0;
         
         // Emit confirmation back to client
         socket.emit('room-joined', { 
@@ -73,7 +73,7 @@ export class WebSocketService {
 
       // Handle zone room leaving
       socket.on('leave-room', (data: { roomName: string, deviceName: string }) => {
-        const { roomName, deviceName } = data;
+        const { roomName, deviceName }: { roomName: string, deviceName: string } = data;
         
         // Leave the zone room
         socket.leave(roomName);
@@ -82,7 +82,7 @@ export class WebSocketService {
         socket.leave(`topic:${roomName}`);
         
         // Get remaining room member count
-        const roomSize = this.io?.sockets.adapter.rooms.get(roomName)?.size || 0;
+        const roomSize: number = this.io?.sockets.adapter.rooms.get(roomName)?.size || 0;
         
         // Emit confirmation back to client
         socket.emit('room-left', { 
@@ -102,11 +102,11 @@ export class WebSocketService {
         if (eventName.includes('-') && !['subscribe', 'unsubscribe', 'join-room', 'leave-room'].includes(eventName)) {
           
           // Extract room name from event (everything before the first dash)
-          const roomName = eventName.split('-')[0];
-          const eventType = eventName.split('-').slice(1).join('-');
+          const roomName: string = eventName.split('-')[0];
+          const eventType: string = eventName.split('-').slice(1).join('-')
           
           // Get room size for logging
-          const roomSize = this.io?.sockets.adapter.rooms.get(roomName)?.size || 0;
+          const roomSize: number = this.io?.sockets.adapter.rooms.get(roomName)?.size || 0;
           
           // Broadcast to all clients in that zone room
           this.io?.to(roomName).emit(eventName, {
@@ -136,7 +136,7 @@ export class WebSocketService {
       return;
     }
     
-    const topicData = {
+    const topicData: {id: string, name: string, data: object, deviceId: string | undefined, zoneId: string | undefined, timestamp: Date} = {
       id: topic.id,
       name: topic.name,
       data: data,
@@ -168,7 +168,7 @@ export class WebSocketService {
       return;
     }
     
-    const clientCount = this.io.sockets.adapter.rooms.get(zoneName)?.size || 0;
+    const clientCount: number = this.io.sockets.adapter.rooms.get(zoneName)?.size || 0;
     
     if (clientCount > 0) {
       this.io.to(zoneName).emit(eventName, {
